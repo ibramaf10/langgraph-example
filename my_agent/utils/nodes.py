@@ -3,7 +3,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from my_agent.utils.tools import tools
 from langgraph.prebuilt import ToolNode
-
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 @lru_cache(maxsize=4)
 def _get_model(model_name: str):
@@ -11,22 +11,34 @@ def _get_model(model_name: str):
         model = ChatOpenAI(temperature=0, model_name="gpt-4o")
     elif model_name == "anthropic":
         model =  ChatAnthropic(temperature=0, model_name="claude-3-sonnet-20240229")
+    elif model_name == "gemini":
+        model =  ChatGoogleGenerativeAI(temperature=0, model="gemini-1.5-flash")
     else:
         raise ValueError(f"Unsupported model type: {model_name}")
 
     model = model.bind_tools(tools)
     return model
 
-# Define the function that determines whether to continue or not
+# # Define the function that determines whether to continue or not
+# def should_continue(state):
+#     messages = state["messages"]
+#     last_message = messages[-1]
+#     # If there are no tool calls, then we finish
+#     if not last_message.tool_calls:
+#         return "end"
+#     # Otherwise if there is, we continue
+#     else:
+#         return "continue"
 def should_continue(state):
     messages = state["messages"]
     last_message = messages[-1]
-    # If there are no tool calls, then we finish
-    if not last_message.tool_calls:
-        return "end"
-    # Otherwise if there is, we continue
-    else:
-        return "continue"
+
+    # Check if the model's response is vague or if no tools were called
+    if not last_message.tool_calls and "I don't know" in last_message.content:
+        return "continue"  # Trigger tool usage
+
+    # If tools are already invoked or the response is sufficient, end the workflow
+    return "end"
 
 
 system_prompt = """Be a helpful assistant"""
